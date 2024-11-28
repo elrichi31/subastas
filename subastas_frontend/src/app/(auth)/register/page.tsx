@@ -8,17 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { v4 as uuidv4 } from 'uuid'; // Para generar UUIDs
 
 export default function RegisterPage() {
   const [role, setRole] = useState<'postor' | 'manejador' | ''>('');
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
-  const ws = useWebSocket(); // Hook que devuelve la referencia al WebSocket
+  const ws = useWebSocket();
   const router = useRouter();
-
-  useEffect(() => {
-    console.log('RegisterPage mounted');
-  }, [ws]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -29,19 +26,20 @@ export default function RegisterPage() {
 
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       if (role === 'postor') {
-        const userId = `${formData.nombre}_${formData.apellido}_${Date.now()}`; // Crear un userId único
+        const userId = uuidv4(); // Generar un ID único para el usuario
 
-        // Registrar usuario en el servidor
+        // Enviar todos los datos en un solo mensaje
         ws.current.send(
           JSON.stringify({
             type: 'register_user',
             userId,
+            nombre: formData.nombre,
+            apellido: formData.apellido,
           })
         );
 
         ws.current.onmessage = (event) => {
           const response = JSON.parse(event.data);
-
           if (response.success) {
             setMessage('Usuario registrado exitosamente.');
             router.push(`/auctions?userId=${userId}`);
@@ -108,24 +106,6 @@ export default function RegisterPage() {
                 <div className="mb-4">
                   <Label htmlFor="apellido">Apellido</Label>
                   <Input id="apellido" name="apellido" onChange={handleInputChange} />
-                </div>
-              </>
-            )}
-
-            {role === 'manejador' && (
-              <>
-                <div className="mb-4">
-                  <Label htmlFor="usuario">Usuario</Label>
-                  <Input id="usuario" name="usuario" onChange={handleInputChange} />
-                </div>
-                <div className="mb-4">
-                  <Label htmlFor="contrasena">Contraseña</Label>
-                  <Input
-                    id="contrasena"
-                    name="contrasena"
-                    type="password"
-                    onChange={handleInputChange}
-                  />
                 </div>
               </>
             )}
