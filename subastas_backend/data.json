@@ -1,0 +1,59 @@
+[
+    {
+      "id": 0,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/Leonardo_da_Vinci_-_Mona_Lisa_%28Louvre%2C_Paris%29.jpg/800px-Leonardo_da_Vinci_-_Mona_Lisa_%28Louvre%2C_Paris%29.jpg",
+      "painter": "Leonardo da Vinci",
+      "name": "The Mona Lisa",
+      "year": "1503",
+      "base_price": 200000000
+    },
+    {
+      "id": 1,
+      "url": "https://collectionapi.metmuseum.org/api/collection/v1/iiif/438817/2007191/main-image",
+      "painter": "Edgar Degas",
+      "name": "The Dance Class",
+      "year": "1874",
+      "base_price": 10000000
+    },
+    {
+      "id": 2,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Edgar_Degas_-_In_a_Caf%C3%A9_-_Google_Art_Project_2.jpg/1200px-Edgar_Degas_-_In_a_Caf%C3%A9_-_Google_Art_Project_2.jpg",
+      "painter": "Edgar Degas",
+      "name": "L'Absinthe",
+      "year": "1876",
+      "base_price": 19000000
+    },
+    {
+      "id": 3,
+      "url": "https://upload.wikimedia.org/wikipedia/en/f/fb/Matisse-Woman-with-a-Hat.jpg",
+      "painter": "Amedeo Modigliani",
+      "name": "Portrait of a Woman in a Hat",
+      "year": "1917",
+      "base_price": 67000000
+    },
+    {
+      "id": 4,
+      "url": "https://media.nga.gov/iiif/4053e7eb-3ad6-466c-8825-48356e59f86a/full/full/0/default.jpg?attachment_filename=woman_with_red_hair_1963.10.176.jpg",
+      "painter": "Amedeo Modigliani",
+      "name": "Woman with Red Hair",
+      "year": "1919",
+      "base_price": 120000000
+    },
+    {
+      "id": 5,
+      "url": "https://upload.wikimedia.org/wikipedia/en/d/d4/Portrait_of_Dora_Maar.jpg",
+      "painter": "Pablo Picasso",
+      "name": "Portrait of Dora Maar",
+      "year": "1937",
+      "base_price": 90000000
+    },
+    {
+      "id": 6,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Vincent_van_Gogh_-_Self-Portrait_-_Google_Art_Project.jpg/1200px-Vincent_van_Gogh_-_Self-Portrait_-_Google_Art_Project.jpg",
+      "painter": "Vincent Van Gogh",
+      "name": "Self-Portrait",
+      "year": "1889",
+      "base_price": 100000000
+    }
+  ]
+  
