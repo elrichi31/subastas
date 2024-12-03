@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { AuctionCard } from '@/components/AuctionCard';
 import { useWebSocket } from '@/app/context/WebSocketContext';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 interface Auction {
@@ -21,6 +21,7 @@ export default function AuctionsPage() {
   const ws = useWebSocket();
   const searchParams = useSearchParams();
   const userId = searchParams.get('userId');
+  const router = useRouter();
   
   const hasRegisteredRef = useRef(false);
 
@@ -30,6 +31,7 @@ export default function AuctionsPage() {
     try {
       const response = await fetch(`http://localhost:3001/api/my-auctions?userId=${userId}`);
       if (!response.ok) {
+        console.error('Error fetching registered auctions:', Error);
         throw new Error('Failed to fetch registered auctions');
       }
       const data = await response.json();
@@ -192,6 +194,12 @@ export default function AuctionsPage() {
     }
   };
 
+  const enterLobby = (id: number) => {
+    // Redirigir al usuario a la sala
+    router.push(`/auctions/${id}?userId=${userId}`);
+  };
+  
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6 text-center">Subastas de Arte</h1>
@@ -207,6 +215,7 @@ export default function AuctionsPage() {
             base_price={auction.base_price}
             onRegister={handleRegister}
             isRegistered={registeredAuctions.includes(auction.id)}
+            enterLobby={enterLobby}
           />
         ))}
       </div>

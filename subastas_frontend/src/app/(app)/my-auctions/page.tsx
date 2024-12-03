@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { AuctionCard } from '@/components/AuctionCard';
 import { toast } from 'sonner';
 import { useWebSocket } from '@/app/context/WebSocketContext';
@@ -16,6 +16,7 @@ interface Auction {
 }
 
 export default function MyAuctionsPage() {
+    const router = useRouter();
     const [registeredAuctions, setRegisteredAuctions] = useState<Auction[]>([]);
     const searchParams = useSearchParams();
     const ws = useWebSocket();
@@ -67,6 +68,9 @@ export default function MyAuctionsPage() {
         }
     };
 
+    const enterLobby = (id: number) => {
+        router.push(`/auctions/${id}?userId=${userId}`);
+    }
 
     return (
         <div className="container mx-auto p-4">
@@ -83,6 +87,7 @@ export default function MyAuctionsPage() {
                         base_price={auction.base_price}
                         onRegister={handleRegister} // Pasar el manejador de registro
                         isRegistered={true} // Siempre estará registrado en "Mis Subastas"
+                        enterLobby={enterLobby}
                     />
                 ))}
             </div>
