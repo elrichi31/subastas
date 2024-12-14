@@ -31,7 +31,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         })
         .then((data) => {
           if (data.id) {
-            console.log('User data:', data);
             setUser({
               id: data.id,
               nombre: data.nombre,
@@ -41,7 +40,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         })
         .catch((error) => console.error('Error fetching user data:', error));
     }
-  }, [userId]);
+  }, []);
 
   return (
     <div>

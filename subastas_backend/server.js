@@ -1,31 +1,37 @@
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
-const WebSocket = require('ws');
-
+const { Server } = require('socket.io'); // Importar Socket.IO
 const { setupRestEndpoints } = require('./routes/endpoints');
-const { setupWebSocketServer } = require('./websocket/websocket');
+const { setupWebSocketServer } = require('./websocket/websocket'); // Configuración WebSocket
 
 function startServer() {
     const app = express();
-    app.use(cors({ origin: '*' }));
+    app.use(express.json());
+    app.use(cors({ origin: '*' })); // Permitir solicitudes desde cualquier origen
 
-    // Setup REST endpoints
+    // Configurar endpoints REST
     setupRestEndpoints(app);
 
-    // Create HTTP and WebSocket server
+    // Crear servidor HTTP
     const server = http.createServer(app);
-    const wss = new WebSocket.Server({ server });
 
-    // Setup WebSocket
-    setupWebSocketServer(wss);
+    // Configurar servidor Socket.IO
+    const io = new Server(server, {
+        cors: {
+            origin: '*', // Permitir CORS para clientes
+            methods: ['GET', 'POST'],
+        },
+    });
 
-    // Start server
+    // Configurar WebSocket con lógica
+    setupWebSocketServer(io);
+
+    // Iniciar servidor
     const PORT = process.env.PORT || 3001;
     server.listen(PORT, () => {
         console.log(`HTTP and WebSocket server running on port ${PORT}`);
     });
 }
 
-// Initialize the application
 startServer();

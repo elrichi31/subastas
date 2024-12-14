@@ -1,37 +1,60 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
 
-const WebSocketContext = createContext<{ current: WebSocket | null } | null>(null);
+const SocketContext = createContext<{ current: Socket | null } | null>(null);
 
 export const WebSocketProvider = ({ children }: { children: React.ReactNode }) => {
-  const ws = useRef<WebSocket | null>(null);
+  const socket = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (!ws.current) {
-      ws.current = new WebSocket('ws://localhost:3001');
-      ws.current.onopen = () => console.log('Connected to WebSocket server from WebSocketProvider');
-      ws.current.onclose = () => console.log('WebSocket disconnected');
-      ws.current.onerror = (error) => console.error('WebSocket error:', error);
+    if (!socket.current) {
+      socket.current = io('http://localhost:3001', {
+        transports: ['websocket'],
+        reconnection: true,
+        reconnectionDelay: 500,
+        reconnectionAttempts: Infinity,
+      });
+
+      // Manejo de eventos de conexión y reconexión
+      socket.current.on('connect', () => {
+        console.log('Connected to server:', socket.current?.id);
+
+        // Registrar al usuario después de reconectar
+        const userId = localStorage.getItem('userId'); // Guardar el userId en localStorage
+        if (userId) {
+          socket.current?.emit('register_user', { userId });
+          console.log(`Usuario ${userId} registrado después de reconexión.`);
+        }
+      });
+
+      socket.current.on('disconnect', (reason) => {
+        console.log('Disconnected from server:', reason);
+      });
+
+      socket.current.on('connect_error', (error) => {
+        console.error('Connection error:', error);
+      });
     }
 
     return () => {
-      ws.current?.close();
-      ws.current = null;
+      socket.current?.disconnect();
+      socket.current = null;
     };
   }, []);
 
   return (
-    <WebSocketContext.Provider value={ws}>
+    <SocketContext.Provider value={socket}>
       {children}
-    </WebSocketContext.Provider>
+    </SocketContext.Provider>
   );
 };
 
 export const useWebSocket = () => {
-  const ws = useContext(WebSocketContext);
-  if (!ws) {
+  const socket = useContext(SocketContext);
+  if (!socket) {
     throw new Error('useWebSocket must be used within a WebSocketProvider');
   }
-  return ws;
+  return socket;
 };

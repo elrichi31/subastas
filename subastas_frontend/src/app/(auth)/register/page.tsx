@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWebSocket } from '@/app/context/WebSocketContext';
 import { Button } from '@/components/ui/button';
@@ -8,12 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { v4 as uuidv4 } from 'uuid'; // Para generar UUIDs
+import { v4 as uuidv4 } from 'uuid';
 
 export default function RegisterPage() {
   const [role, setRole] = useState<'postor' | 'manejador' | ''>('');
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const ws = useWebSocket();
   const router = useRouter();
 
@@ -21,52 +22,65 @@ export default function RegisterPage() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!role) {
+      setMessage('Por favor seleccione un rol antes de continuar.');
+      return;
+    }
 
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+    const socket = ws.current;
+    if (socket && socket.connected) {
+      setLoading(true);
+
       if (role === 'postor') {
-        const userId = uuidv4(); // Generar un ID único para el usuario
+        const userId = uuidv4();
+        localStorage.setItem('userId', userId); // Guardar userId en localStorage
 
-        // Enviar todos los datos en un solo mensaje
-        ws.current.send(
-          JSON.stringify({
-            type: 'register_user',
-            userId,
-            nombre: formData.nombre,
-            apellido: formData.apellido,
-          })
-        );
+        socket.emit('register_user', {
+          userId,
+          nombre: formData.nombre,
+          apellido: formData.apellido,
+          role: 'postor',
+        });
 
-        ws.current.onmessage = (event) => {
-          const response = JSON.parse(event.data);
+
+        // Escuchar respuesta del servidor
+        socket.on('user_registered', (response: any) => {
+          setLoading(false);
           if (response.success) {
             setMessage('Usuario registrado exitosamente.');
             router.push(`/auctions?userId=${userId}`);
           } else {
-            setMessage('Error al registrar usuario.');
+            setMessage(response.message || 'Error al procesar la solicitud.');
           }
-        };
+        });
       } else if (role === 'manejador') {
-        ws.current.send(
-          JSON.stringify({
-            type: 'login_manejador',
-            usuario: formData.usuario,
-            contrasena: formData.contrasena,
-          })
-        );
+        const userId = uuidv4();
+        localStorage.setItem('userId', userId); // Guardar userId en localStorage
+        const res = await fetch('http://localhost:3001/api/login-admin', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(
+            {
+              userId,
+              username: formData.usuario,
+              password: formData.contrasena,
+            }
+          ),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setMessage('Usuario registrado exitosamente.');
+          router.push(`/auctions?userId=${userId}`);
+        } else {
+          setMessage(data.message || 'Error al procesar la solicitud.');
+        }
 
-        ws.current.onmessage = (event) => {
-          const response = JSON.parse(event.data);
-          setMessage(response.message);
-
-          if (response.success) {
-            router.push('/manage-auctions');
-          }
-        };
       }
     } else {
-      console.error('WebSocket is not connected');
       setMessage('Error: No se pudo conectar al servidor.');
     }
   };
@@ -101,17 +115,36 @@ export default function RegisterPage() {
               <>
                 <div className="mb-4">
                   <Label htmlFor="nombre">Nombre</Label>
-                  <Input id="nombre" name="nombre" onChange={handleInputChange} />
+                  <Input id="nombre" name="nombre" onChange={handleInputChange} required />
                 </div>
                 <div className="mb-4">
                   <Label htmlFor="apellido">Apellido</Label>
-                  <Input id="apellido" name="apellido" onChange={handleInputChange} />
+                  <Input id="apellido" name="apellido" onChange={handleInputChange} required />
                 </div>
               </>
             )}
 
-            <Button type="submit" disabled={!role}>
-              Registrarse
+            {role === 'manejador' && (
+              <>
+                <div className="mb-4">
+                  <Label htmlFor="usuario">Usuario</Label>
+                  <Input id="usuario" name="usuario" onChange={handleInputChange} required />
+                </div>
+                <div className="mb-4">
+                  <Label htmlFor="contrasena">Contraseña</Label>
+                  <Input
+                    id="contrasena"
+                    name="contrasena"
+                    type="password"
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+              </>
+            )}
+
+            <Button type="submit" disabled={!role || loading}>
+              {loading ? 'Procesando...' : 'Registrarse'}
             </Button>
           </form>
 

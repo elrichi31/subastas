@@ -1,13 +1,18 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
-import { Paintbrush, Calendar, DollarSign, Users } from 'lucide-react';
 import { useWebSocket } from '@/app/context/WebSocketContext';
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import AuctionDataCard from '@/components/AuctionDataCard';
+import AuctionTransactionCard from '@/components/AuctionTransactionCard';
+import AuctionUsersCard from '@/components/AuctionUsersCard';
+import AuctionDetails from '@/components/AuctionDetails';
+import AuctionAdminCard from '@/components/AuctionAdminCard';
 
 interface Auction {
   id: string;
@@ -24,6 +29,7 @@ interface User {
   id: string;
   nombre: string;
   apellido: string;
+  role: string;
 }
 
 export default function AuctionRoom() {
@@ -32,145 +38,141 @@ export default function AuctionRoom() {
   const userId = searchParams.get('userId');
   const [auction, setAuction] = useState<Auction | null>(null);
   const [users, setUsers] = useState<User[]>([]);
-  const [bidAmount, setBidAmount] = useState('');
-  const [registered, setRegistered] = useState(false);
-  const ws = useWebSocket(); // Use existing WebSocket context
+  const [user, setUser] = useState<User | null>(null);
+  const [auctionState, setAuctionState] = useState<any | null>(null);
+  const socket = useWebSocket();
+  const [loading, setLoading] = useState(true); // Indicador de carga
 
-  // Fetch auction details and participants
+  // Fetch auction details
   useEffect(() => {
-    fetch(`http://localhost:3001/api/auction?auctionId=${id}`)
-      .then((response) => response.json())
-      .then((data) => {
-        setAuction(data);
-      })
-      .catch((error) => console.error('Error fetching auction details:', error));
+    if (!id) return;
+    const fetchAuction = async () => {
+      try {
+        const responses = await Promise.all([
+          fetch(`http://localhost:3001/api/auction?auctionId=${id}`),
+          fetch(`http://localhost:3001/api/auction-room-users?auctionId=${id}`),
+          fetch(`http://localhost:3001/api/users?userId=${userId}`),
+          fetch(`http://localhost:3001/api/auction-room-state?auctionId=${id}`)
+        ]);
 
-    fetch(`http://localhost:3001/api/auction-users?auctionId=${id}`)
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.users) {
-          setUsers(data.users);
-        }
-      })
-      .catch((error) => console.error('Error fetching participants:', error));
-  }, []);
+        const [auctionResponse, usersResponse, userResponse, auctionRoomResponse] = await Promise.all(
+          responses.map((res) => res.json())
+        );
 
-  // WebSocket message handling
-  useEffect(() => {
-    const socket = ws.current;
-    console.log("userID" + userId, "auctionID" + id);
+        console.log("Auction response", auctionRoomResponse);
 
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(
-        JSON.stringify({
-          type: 'user_entered',
-          userId,
-          auctionId: id,
-        })
-      );
+        setAuction(auctionResponse);
+        setUsers(usersResponse.users || []);
+        setUser(userResponse);
+        setAuctionState(auctionRoomResponse || {});
 
-      const handleMessage = (event: MessageEvent) => {
-        const message = JSON.parse(event.data);
+      } catch (error) {
+        console.error('Error fetching auction details:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-        if (message.type === 'user_joined') {
-          const { id: userId, nombre, apellido } = message.data;
-
-          setUsers((prevUsers) => {
-            // Evitar duplicados
-            const isUserExists = prevUsers.some((user) => user.id === userId);
-            if (isUserExists) {
-              return prevUsers;
-            }
-
-            return [...prevUsers, { id: userId, nombre, apellido }];
-          });
-        }
-
-        if (message.type === 'user_left') {
-          setUsers((prevUsers) =>
-            prevUsers.filter((user) => user.id !== message.data.id)
-          );
-        }
-      };
-
-      socket.addEventListener('message', handleMessage);
-
-      return () => {
-        socket.removeEventListener('message', handleMessage);
-      };
+    fetchAuction();
+    return () => {
+      socket.current?.emit('user_left', { userId, auctionId: id });
     }
-  }, []);
+
+  }, [id]);
+
+  const handleCreateAuction = async () => {
+    const timer = document.getElementById('timer') as HTMLInputElement;
+    const increment = document.getElementById('increment') as HTMLInputElement;
+    const currentPrice = auction?.base_price || 0;
+    const timeMillis = parseInt(timer.value) * 60 * 1000;
+    console.log(timer.value, increment.value, currentPrice);
+    socket.current?.emit('create_auction', {
+      auctionId: id,
+      countdownDuration: timeMillis,
+      increment: increment.value,
+      currentPrice: currentPrice
+    });
+  }
+
+  const handleUpdateAuction = async () => {
+    const timer = document.getElementById('timer') as HTMLInputElement;
+    const increment = document.getElementById('increment') as HTMLInputElement;
+    const currentPrice = auction?.base_price || 0;
+    const timeMillis = parseInt(timer.value) * 60 * 1000;
+    console.log(timer.value, increment.value, currentPrice);
+    socket.current?.emit('update_auction', {
+      auctionId: id,
+      countdownDuration: timeMillis,
+      increment: increment.value,
+      currentPrice: currentPrice
+    });
+  }
+
+  // Handle WebSocket events
+  useEffect(() => {
+    if (!socket?.current || !id || !userId) return;
+
+    const connectAndJoin = () => {
+      if (!socket.current?.connected) {
+        socket.current?.connect();
+      }
+      socket.current?.emit('user_entered', { userId, auctionId: id });
+    };
+
+    const handleDisconnect = () => {
+      socket.current?.emit('user_left', { userId, auctionId: id });
+    };
+
+    const handleRoomUpdated = (data: { users: any }) => {
+      setUsers(data.users.users);
+    };
+    connectAndJoin();
+
+    socket.current.on('connect', connectAndJoin);
+    socket.current.on('disconnect', handleDisconnect);
+    socket.current.on('room_updated', handleRoomUpdated);
+    socket.current.on('auction_created', (data: any) => {
+      setAuctionState(data);
+    });
+    socket.current.on('auction_updated', (data: any) => {
+      setAuctionState(data);
+    });
+
+    return () => {
+      socket.current?.off('connect', connectAndJoin);
+      socket.current?.off('disconnect', handleDisconnect);
+      socket.current?.off('room_updated', handleRoomUpdated);
+    };
+  }, [socket, id, userId]);
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto p-4 min-h-screen">
       <h1 className="text-3xl font-bold mb-6">Sala de Subasta</h1>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>{auction ? auction.name : 'Cargando...'}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {auction && (
-                <>
-                  <div className="aspect-w-16 aspect-h-9 mb-4">
-                    <img src={auction.url} alt={auction.name} className="object-cover rounded-lg" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center space-x-2">
-                      <Paintbrush className="w-4 h-4 text-muted-foreground" />
-                      <span>Artista: {auction.painter}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="w-4 h-4 text-muted-foreground" />
-                      <span>Año: {auction.year}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <DollarSign className="w-4 h-4 text-green-500" />
-                      <span>Precio base: ${auction.base_price.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </>
-              )}
-              <div className="mt-6 flex space-x-4">
-                <Input
-                  type="number"
-                  placeholder="Monto de la puja"
-                  value={bidAmount}
-                  onChange={(e) => setBidAmount(e.target.value)}
-                  className="flex-grow"
-                />
-                <Button>Hacer Puja</Button>
-              </div>
-            </CardContent>
-          </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-1">
+          <AuctionDataCard auction={auction} />
         </div>
         <div>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Users className="w-5 h-5" />
-                <span>Participantes</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {users.map((user) => (
-                  <div key={user.id} className="flex items-center space-x-4">
-                    <Avatar>
-                      <AvatarFallback>{user.nombre?.charAt(0) || '?'}</AvatarFallback>
-                    </Avatar>
-                    <span>{user.nombre || 'Usuario desconocido'} {user.apellido || ''}</span>
-                  </div>
-                ))}
-              </div>
-              <Button className="w-full mt-4">
-                {registered ? 'Ya unido' : 'Unirse a la Subasta'}
-              </Button>
-            </CardContent>
-          </Card>
+          <AuctionTransactionCard />
+        </div>
+        <div>
+          {loading ? (
+            <div>Cargando datos...</div>
+          ) : (
+            <div>
+              <AuctionUsersCard users={users} userId={userId} />
+              <AuctionDetails auctionState={auctionState} />
+              {user?.role === "admin" ? (
+                <AuctionAdminCard
+                  auctionState={auctionState}
+                  handleCreateAuction={handleCreateAuction}
+                  handleUpdateAuction={handleUpdateAuction}
+                />
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
     </div>
-  );
+  );  
 }

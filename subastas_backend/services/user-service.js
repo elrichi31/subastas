@@ -1,16 +1,19 @@
-// In-memory storage for users and user auctions
+// In-memory storage for users, user auctions, and auction rooms
 const users = {}; // Stores users in memory
 const userAuctions = {}; // Stores user auctions
+const auctionRooms = {}; // Stores users present in auction rooms
+const userSockets = new Map(); // userId -> socketId
+const socketUsers = new Map(); // socketId -> userId
 
 function registerUser(userData) {
-    const { userId, nombre, apellido } = userData;
-
+    const { userId, nombre, apellido, role } = userData;
     // Register user if not exists
     if (!users[userId]) {
         users[userId] = {
             id: userId,
             nombre,
             apellido,
+            role
         };
     }
 
@@ -66,6 +69,65 @@ function removeAuction(userId, auctionId) {
     };
 }
 
+function addUserToAuctionRoom(userId, auctionId) {
+    if (!users[userId]) {
+        console.error('User not registered. Cannot add to auction room.');
+        return {
+            success: false,
+            message: 'User not registered',
+        };
+    }
+
+    if (!auctionRooms[auctionId]) {
+        console.log(`Auction room ${auctionId} not found. Creating new room.`);
+        auctionRooms[auctionId] = [];
+    }
+
+    const user = users[userId]; // Buscar el usuario por su ID
+
+    if (!auctionRooms[auctionId].some(u => u.id === userId)) {
+        auctionRooms[auctionId].push({
+            id: userId,
+            nombre: user.nombre,
+            apellido: user.apellido,
+            role: user.role
+        });
+        console.log(`User ${userId} (${user.nombre} ${user.apellido}) added to auction room ${auctionId}`);
+    }
+
+    return {
+        success: true,
+        message: 'User added to auction room',
+        roomUsers: auctionRooms[auctionId],
+    };
+}
+
+
+function removeUserFromAuctionRoom(userId, auctionId) {
+    const auctionIdStr = String(auctionId); // Convertir auctionId a string
+    if (!auctionRooms[auctionIdStr]) {
+        console.log(`Auction room ${auctionIdStr} not found`);
+        return {
+            success: false,
+            message: 'Auction room not found',
+        };
+    }
+
+    // Encontrar el índice del usuario en la sala usando findIndex
+    const userIndex = auctionRooms[auctionIdStr].findIndex(user => user.id === userId);
+    if (userIndex > -1) {
+        auctionRooms[auctionIdStr].splice(userIndex, 1);
+        console.log(`User ${userId} removed from auction room ${auctionIdStr}`);
+    }
+
+    return {
+        success: true,
+        message: 'User removed from auction room',
+        roomUsers: auctionRooms[auctionIdStr],
+    };
+}
+
+
 function getUsersInAuction(auctionId) {
     const usersInAuction = [];
     // Convert auctionId to a string for consistent comparison
@@ -81,6 +143,7 @@ function getUsersInAuction(auctionId) {
                     id: userId,
                     nombre: user.nombre,
                     apellido: user.apellido,
+                    role: user.role
                 });
             }
         }
@@ -92,15 +155,27 @@ function getUsersInAuction(auctionId) {
     };
 }
 
-
-
-
+function getUsersInAuctionRoom(auctionId) {
+    const roomUsers = auctionRooms[auctionId] || [];
+    const userDetails = roomUsers.map((userId) => users[userId]).filter(Boolean);
+    return {
+        success: true,
+        message: `Users in auction room ${auctionId} retrieved`,
+        users: roomUsers,
+    };
+}
 
 module.exports = {
     registerUser,
     selectAuction,
     removeAuction,
+    addUserToAuctionRoom,
+    removeUserFromAuctionRoom,
     getUsersInAuction,
+    getUsersInAuctionRoom,
     users,
     userAuctions,
+    auctionRooms,
+    userSockets,
+    socketUsers
 };

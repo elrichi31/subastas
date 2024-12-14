@@ -1,11 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { AuctionCard } from '@/components/AuctionCard';
-import { useWebSocket } from '@/app/context/WebSocketContext';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-
 interface Auction {
   id: number;
   name: string;
@@ -18,20 +16,18 @@ interface Auction {
 export default function AuctionsPage() {
   const [auctionData, setAuctionData] = useState<Auction[]>([]);
   const [registeredAuctions, setRegisteredAuctions] = useState<number[]>([]);
-  const ws = useWebSocket();
   const searchParams = useSearchParams();
   const userId = searchParams.get('userId');
   const router = useRouter();
-  
-  const hasRegisteredRef = useRef(false);
 
-      const fetchRegisteredAuctions = useCallback(async () => {
+  // Fetch registered auctions for the user
+  const fetchRegisteredAuctions = useCallback(async () => {
     if (!userId) return;
 
     try {
       const response = await fetch(`http://localhost:3001/api/my-auctions?userId=${userId}`);
       if (!response.ok) {
-        console.error('Error fetching registered auctions:', Error);
+        console.error('Error fetching registered auctions:', response.statusText);
         throw new Error('Failed to fetch registered auctions');
       }
       const data = await response.json();
@@ -39,166 +35,77 @@ export default function AuctionsPage() {
       setRegisteredAuctions(registeredAuctionIds);
     } catch (error) {
       console.error('Error fetching registered auctions:', error);
-      toast.error("No se pudieron cargar las subastas registradas");
+      toast.error('No se pudieron cargar las subastas registradas');
     }
   }, [userId]);
-
-  // Robust registration function
-  const registerUser = useCallback(() => {
-    // Ensure we only register once
-    if (hasRegisteredRef.current) return;
-
-    const attemptRegistration = () => {
-      // Check if WebSocket is available and user ID exists
-      if (ws.current && userId) {
-        // Always attempt to send registration, regardless of connection state
-        try {
-          // If connection is open, send directly
-          if (ws.current.readyState === WebSocket.OPEN) {
-            ws.current.send(
-              JSON.stringify({
-                type: 'register_user',
-                userId,
-              })
-            );
-            hasRegisteredRef.current = true;
-            console.log(`Usuario registrado con userId: ${userId}`);
-            return true;
-          }
-          
-          // If not open, set up an onopen handler
-          ws.current.onopen = () => {
-            if (!hasRegisteredRef.current) {
-              ws.current?.send(
-                JSON.stringify({
-                  type: 'register_user',
-                  userId,
-                })
-              );
-              hasRegisteredRef.current = true;
-              console.log(`Usuario registrado en onopen con userId: ${userId}`);
-            }
-          };
-
-          // Fallback: force registration after a short delay
-          setTimeout(() => {
-            if (!hasRegisteredRef.current && ws.current && userId) {
-              try {
-                ws.current.send(
-                  JSON.stringify({
-                    type: 'register_user',
-                    userId,
-                  })
-                );
-                hasRegisteredRef.current = true;
-                console.log(`Usuario registrado por timeout con userId: ${userId}`);
-              } catch (error) {
-                console.error('Error sending registration:', error);
-              }
-            }
-          }, 500); // 1 second delay to ensure connection
-
-          return false;
-        } catch (error) {
-          console.error('Registration error:', error);
-          return false;
-        }
-      }
-      return false;
-    };
-
-    // Initial attempt
-    if (!attemptRegistration()) {
-      // If first attempt fails, set up periodic checks
-      const registrationInterval = setInterval(() => {
-        if (attemptRegistration()) {
-          clearInterval(registrationInterval);
-        }
-      }, 2000); // Check every 2 seconds
-
-      // Ensure we don't keep checking indefinitely
-      setTimeout(() => {
-        clearInterval(registrationInterval);
-      }, 30000); // Stop after 30 seconds
-    }
-  }, [ws, userId]);
-
-  // Fetch auctions and registered auctions on component mount
+  // Fetch all auctions
   useEffect(() => {
-    // Fetch all auctions
     fetch('http://localhost:3001/api/auctions')
       .then((response) => response.json())
       .then((data) => setAuctionData(data))
-      .catch((error) => console.error('Error fetching auctions:', error));
+      .catch((error) => {
+        console.error('Error fetching auctions:', error);
+        toast.error('No se pudieron cargar las subastas');
+      });
 
-    // Fetch user's registered auctions
     fetchRegisteredAuctions();
   }, [fetchRegisteredAuctions]);
 
-  // WebSocket registration and message handling
-  useEffect(() => {
-    // Attempt to register user
-    registerUser();
-
-    // Handle incoming messages
-    if (ws.current) {
-      ws.current.onmessage = (event) => {
-        const response = JSON.parse(event.data);
-        if (response.success && response.selectedAuctions) {
-          // Update registered auctions state
-          const updatedRegisteredAuctions = response.selectedAuctions;
-          setRegisteredAuctions(updatedRegisteredAuctions);
-        }
-      };
-    }
-  }, [ws, userId, registerUser]);
-
-  const handleRegister = (id: number) => {
+  // Handle register or unregister auction
+  const handleRegister = async (id: number) => {
     const isAlreadyRegistered = registeredAuctions.includes(id);
-    let updatedRegisteredAuctions: number[];
 
     if (isAlreadyRegistered) {
-      // Remove auction
-      updatedRegisteredAuctions = registeredAuctions.filter((auctionId) => auctionId !== id);
-      setRegisteredAuctions(updatedRegisteredAuctions);
+      // Unregister auction using DELETE
+      try {
+        const response = await fetch(`http://localhost:3001/api/unregister-auction`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, auctionId: id }),
+        });
 
-      if (ws?.current && ws.current.readyState === WebSocket.OPEN && userId) {
-        ws.current.send(
-          JSON.stringify({
-            type: 'remove_auction',
-            userId,
-            auctionId: id,
-          })
-        );
+        if (!response.ok) {
+          console.error('Error unregistering auction:', response.statusText);
+          throw new Error('Failed to unregister auction');
+        }
+
+        setRegisteredAuctions((prev) => prev.filter((auctionId) => auctionId !== id));
+        toast('Subasta eliminada', {
+          description: `Has quitado la subasta con ID: ${id}`,
+        });
+      } catch (error) {
+        console.error('Error unregistering auction:', error);
+        toast.error('No se pudo eliminar la subasta');
       }
-      toast("Subasta eliminada", {
-        description: `Has quitado la subasta con ID: ${id}`,
-      });
     } else {
-      // Register auction
-      updatedRegisteredAuctions = [...registeredAuctions, id];
-      setRegisteredAuctions(updatedRegisteredAuctions);
+      // Register auction using POST
+      try {
+        const response = await fetch(`http://localhost:3001/api/register-auction`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, auctionId: id }),
+        });
 
-      if (ws?.current && ws.current.readyState === WebSocket.OPEN && userId) {
-        ws.current.send(
-          JSON.stringify({
-            type: 'select_auction',
-            userId,
-            auctionId: id,
-          })
-        );
+        if (!response.ok) {
+          console.error('Error registering auction:', response.statusText);
+          throw new Error('Failed to register auction');
+        }
+
+        setRegisteredAuctions((prev) => [...prev, id]);
+        toast('Subasta registrada', {
+          description: `Te has registrado en la subasta con ID: ${id}`,
+        });
+      } catch (error) {
+        console.error('Error registering auction:', error);
+        toast.error('No se pudo registrar la subasta');
       }
-      toast("Subasta registrada", {
-        description: `Te has registrado en la subasta con ID: ${id}`,
-      });
     }
   };
 
+  // Enter auction lobby
   const enterLobby = (id: number) => {
-    // Redirigir al usuario a la sala
     router.push(`/auctions/${id}?userId=${userId}`);
   };
-  
 
   return (
     <div className="container mx-auto p-4">

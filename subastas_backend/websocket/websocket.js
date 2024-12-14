@@ -1,88 +1,140 @@
-const { registerUser, selectAuction, removeAuction, getUsersInAuction, addUserToAuction, users } = require('../services/user-service');
+const {
+    registerUser,
+    addUserToAuctionRoom,
+    removeUserFromAuctionRoom,
+    getUsersInAuctionRoom,
+    auctionRooms,
+    userSockets,
+    socketUsers,
+} = require('../services/user-service');
 
-function setupWebSocketServer(wss) {
-    const clients = new Map(); // Map to track userId and WebSocket connection
+const {
+    createAuction,
+    auctionData,
+    updateAuction,
+} = require('../services/auction-service');
 
-    wss.on('connection', (ws) => {
-        let userId = null;
-        console.log('Client connected');
+function setupWebSocketServer(io) {
 
-        ws.on('message', (message) => {
-            const data = JSON.parse(message);
 
-            switch (data.type) {
-                case 'register_user':
-                    userId = data.userId;
-                    const registeredUser = registerUser(data);
-                    clients.set(userId, ws);
-                    console.log(`User registered: ${JSON.stringify(registeredUser)}`);
-                    ws.send(JSON.stringify({ success: true, message: 'User registered', user: registeredUser }));
-                    break;
+    io.on('connection', (socket) => {
+        console.log('Cliente conectado:', socket.id);
+        // Registro de usuarios
+        socket.on('register_user', (data) => {
+            const userId = data.userId;
+            userSockets.set(userId, socket.id); // Asociar userId con socket.id
+            socketUsers.set(socket.id, userId); // Asociar socket.id con userId
+            const registeredUser = registerUser(data);
+            console.log(`Usuario registrado: ${JSON.stringify(registeredUser)}`);
+            socket.emit('user_registered', { success: true, user: registeredUser });
+        });
 
-                case 'select_auction':
-                    const selectResult = selectAuction(userId, data.auctionId);
-                    ws.send(JSON.stringify(selectResult));
-                    break;
+        // Usuario entra en una subasta
+        socket.on('user_entered', (data) => {
+            const auctionId = parseInt(data.auctionId);
+            const userId = data.userId;
+            userSockets.set(userId, socket.id); // Asociar userId con socket.id
+            socketUsers.set(socket.id, userId); // Asociar socket.id con userId
 
-                case 'remove_auction':
-                    const removeResult = removeAuction(userId, data.auctionId);
-                    ws.send(JSON.stringify(removeResult));
-                    break;
+            const userAddedToRoom = addUserToAuctionRoom(userId, auctionId);
+            socket.join(String(auctionId)); // Unir al usuario a la sala de la subasta
+            io.to(String(auctionId)).emit('room_updated', { users: getUsersInAuctionRoom(auctionId) });
+            socket.emit('user_entered_ack', { success: true, room: userAddedToRoom });
+        });
 
-                case 'user_entered':
-                    const userAdded = selectAuction(userId, parseInt(data.auctionId));
-                    notifyNewUserOnAuction(data.auctionId, 'user_joined', data.userId);
-                    ws.send(JSON.stringify(userAdded));
-                    break;
+        // Usuario sale de una subasta
+        socket.on('user_left', (data) => {
+            const auctionId = parseInt(data.auctionId);
+            const userId = data.userId;
+            removeUserFromAuctionRoom(userId, auctionId);
+            socket.leave(String(auctionId)); // Salir de la sala de Socket.IO
+            io.to(String(auctionId)).emit('room_updated', { users: getUsersInAuctionRoom(auctionId) });
+            socket.emit('user_left_ack', { success: true });
+        });
 
-                default:
-                    console.log('Unrecognized message:', data);
+        socket.on('create_auction', (data, callback) => {
+            const auctionId = parseInt(data.auctionId);
+            const currentPrice = parseFloat(data.currentPrice);
+            const increment = parseFloat(data.increment);
+            const countdownDuration = parseInt(data.countdownDuration);
+
+            const auction = auctionData.find((a) => a.auctionId === auctionId);
+            if (auction) {
+                return callback({ success: false, message: 'Auction already exists' });
+            }
+
+            const newAuction = createAuction(auctionId, currentPrice, increment, countdownDuration);
+            if (!newAuction.success) {
+                return callback({ success: false, message: newAuction.message });
+            } else {
+                console.log(`Auction ${auctionId} created.`);
+                io.emit('auction_created', { success: true, auction: newAuction.auction });
             }
         });
 
-        ws.on('close', () => {
-            console.log(`Client disconnected: ${userId}`);
-            if (userId) {
-                clients.delete(userId);
+        socket.on('update_auction', (data, callback) => {
+            const auctionId = parseInt(data.auctionId);
+            const currentPrice = parseFloat(data.currentPrice);
+            const increment = parseFloat(data.increment);
+            const countdownDuration = parseInt(data.countdownDuration);
+
+            const response = updateAuction(auctionId, currentPrice, increment, countdownDuration);
+            if (!response.success) {
+                return callback({ success: false, message: response.message });
+            } else {
+                io.emit('auction_updated', { success: true, auction: response.auction });
             }
         });
-    });
 
-    /**
-     * Notify all users in an auction about a new user joining
-     * @param {string} auctionId - ID of the auction
-     * @param {string} eventType - Type of the event (e.g., "user_joined")
-     * @param {string} userId - ID of the user who joined
-     */
-    function notifyNewUserOnAuction(auctionId, eventType, userId) {
-        // Find the user details
-        const user = users[userId];
-        if (!user) {
-            console.error(`User with ID ${userId} not found`);
-            return;
-        }
+        socket.on('start_auction', (data, callback) => {
+            const auctionId = parseInt(data.auctionId);
+            const auction = auctionData.find((a) => a.auctionId === auctionId);
+            if (!auction) {
+                return callback({ success: false, message: 'Auction not found' });
+            }
 
-        // Get all users in the auction
-        const { users: auctionUsers } = getUsersInAuction(auctionId);
+            if (auction.state !== 'not initiated') {
+                return callback({ success: false, message: 'Auction already initiated' });
+            }
 
-        auctionUsers.forEach((auctionUser) => {
-            const client = clients.get(auctionUser.id);
-            if (client && client.readyState === 1) {
-                client.send(
-                    JSON.stringify({
-                        type: eventType,
-                        data: {
-                            id: userId,
-                            nombre: user.nombre,
-                            apellido: user.apellido,
-                        },
-                    })
-                );
+            auction.state = 'initiated';
+            console.log(`Auction ${auctionId} initiated.`);
+            io.to(String(auctionId)).emit('auction_started', { success: true });
+            callback({ success: true });
+        });
+
+        // Manejo de desconexión
+        socket.on('disconnect', (reason) => {
+            console.log(`Cliente desconectado: ${socket.id}, Razón: ${reason}`);
+            const disconnectedUserId = socketUsers.get(socket.id);
+        
+            if (disconnectedUserId) {
+                for (const [auctionId, users] of Object.entries(auctionRooms)) {
+                    console.log(`Revisando sala de subasta ${auctionId}`);
+                    console.log(`Usuarios en sala antes de revisar: ${JSON.stringify(users)}`);
+        
+                    // Encontrar el índice del usuario donde user.id coincida con disconnectedUserId
+                    const userIndex = users.findIndex(user => user.id === disconnectedUserId);
+        
+                    if (userIndex !== -1) {
+                        users.splice(userIndex, 1); // Remover usuario por índice
+                        console.log(`Usuario ${disconnectedUserId} eliminado de sala de subasta ${auctionId}`);
+                        
+                        // Emitir evento actualizado de la sala
+                        io.to(String(auctionId)).emit('room_updated', { users: getUsersInAuctionRoom(auctionId) });
+                    } else {
+                        console.log(`Usuario ${disconnectedUserId} no encontrado en sala de subasta ${auctionId}`);
+                    }
+                }
+        
+                // Eliminar referencias al usuario
+                userSockets.delete(disconnectedUserId);
+                socketUsers.delete(socket.id);
+                console.log(`Usuario desconectado eliminado: ${disconnectedUserId}`);
             }
         });
-    }
+        
+    });        
 }
 
-module.exports = {
-    setupWebSocketServer,
-};
+module.exports = { setupWebSocketServer };

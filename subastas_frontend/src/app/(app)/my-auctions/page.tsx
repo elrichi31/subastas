@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { AuctionCard } from '@/components/AuctionCard';
 import { toast } from 'sonner';
-import { useWebSocket } from '@/app/context/WebSocketContext';
 
 interface Auction {
     id: number;
@@ -19,7 +18,6 @@ export default function MyAuctionsPage() {
     const router = useRouter();
     const [registeredAuctions, setRegisteredAuctions] = useState<Auction[]>([]);
     const searchParams = useSearchParams();
-    const ws = useWebSocket();
     const userId = searchParams.get('userId'); // Obtener el userId
 
     useEffect(() => {
@@ -27,50 +25,67 @@ export default function MyAuctionsPage() {
             fetch(`http://localhost:3001/api/my-auctions?userId=${userId}`)
                 .then((response) => response.json())
                 .then((data) => setRegisteredAuctions(data))
-                .catch((error) => console.error('Error fetching registered auctions:', error));
+                .catch((error) => {
+                    console.error('Error fetching registered auctions:', error);
+                    toast.error('No se pudieron cargar tus subastas registradas.');
+                });
         }
     }, [userId]);
 
-    const handleRegister = (id: number) => {
+    const handleRegister = async (id: number) => {
         const isAlreadyRegistered = registeredAuctions.some((auction) => auction.id === id);
 
         if (isAlreadyRegistered) {
-            // Quitar subasta
-            setRegisteredAuctions((prev) => prev.filter((auction) => auction.id !== id));
-            if (ws?.current && ws.current.readyState === WebSocket.OPEN && userId) {
-                ws.current.send(
-                    JSON.stringify({
-                        type: 'remove_auction',
-                        userId,
-                        auctionId: id,
-                    })
-                );
+            // Eliminar subasta
+            try {
+                const response = await fetch('http://localhost:3001/api/unregister-auction', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, auctionId: id }),
+                });
+
+                if (!response.ok) {
+                    console.error('Error al quitar la subasta:', response.statusText);
+                    throw new Error('No se pudo eliminar la subasta');
+                }
+
+                setRegisteredAuctions((prev) => prev.filter((auction) => auction.id !== id));
+                toast('Subasta eliminada', {
+                    description: `Has quitado la subasta con ID: ${id}`,
+                });
+            } catch (error) {
+                console.error('Error eliminando subasta:', error);
+                toast.error('No se pudo eliminar la subasta.');
             }
-            toast("Subasta eliminada", {
-                description: `Has quitado la subasta con ID: ${id}`,
-            });
         } else {
             // Registrar subasta
-            setRegisteredAuctions((prev) => [
-                ...prev,
-                {
-                    id,
-                    name: 'Nombre de la subasta',
-                    url: 'URL de la subasta',
-                    painter: 'Nombre del pintor',
-                    year: 2021,
-                    base_price: 1000,
-                },
-            ]); // Simular registro localmente
-            toast("Subasta registrada", {
-                description: `Te has registrado en la subasta con ID: ${id}`,
-            });
+            try {
+                const response = await fetch('http://localhost:3001/api/register-auction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, auctionId: id }),
+                });
+
+                if (!response.ok) {
+                    console.error('Error al registrar la subasta:', response.statusText);
+                    throw new Error('No se pudo registrar la subasta');
+                }
+
+                const auction = await response.json();
+                setRegisteredAuctions((prev) => [...prev, auction]);
+                toast('Subasta registrada', {
+                    description: `Te has registrado en la subasta con ID: ${id}`,
+                });
+            } catch (error) {
+                console.error('Error registrando subasta:', error);
+                toast.error('No se pudo registrar la subasta.');
+            }
         }
     };
 
     const enterLobby = (id: number) => {
         router.push(`/auctions/${id}?userId=${userId}`);
-    }
+    };
 
     return (
         <div className="container mx-auto p-4">
