@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 
-export default function AuctionDetails({ auctionState }: any) {
+export default function AuctionDetails({ auctionState, handleEndAuction }: any) {
     const auction = auctionState.auction;
     const [timeRemaining, setTimeRemaining] = useState<number>(auction?.time || 0); // Tiempo en milisegundos
     const [isCountdownActive, setIsCountdownActive] = useState(false);
+
+    const handleStartCountdown = () => {
+        if (timeRemaining > 0) {
+            setIsCountdownActive(true);
+        }
+    };
 
     // Actualizar el tiempo restante cuando `auctionState` cambie
     useEffect(() => {
@@ -13,14 +18,15 @@ export default function AuctionDetails({ auctionState }: any) {
             setTimeRemaining(auction.time); // Actualizar el tiempo restante con el valor más reciente
             setIsCountdownActive(false); // Detener el temporizador si se reinician los datos
         }
-    }, [auctionState]); // Escuchar cambios en `auctionState`
 
-    // Función para iniciar el contador
-    const handleStartCountdown = () => {
-        if (timeRemaining > 0) {
-            setIsCountdownActive(true);
+        if (auction?.state === "in progress") {
+            handleStartCountdown();
         }
-    };
+
+        if (auction?.state === "finished") {
+            setIsCountdownActive(false);
+        }
+    }, [auctionState]); // Escuchar cambios en `auctionState`
 
     // Efecto para manejar la cuenta regresiva
     useEffect(() => {
@@ -30,9 +36,10 @@ export default function AuctionDetails({ auctionState }: any) {
             timer = setInterval(() => {
                 setTimeRemaining((prev) => prev - 1000); // Reducir 1 segundo (1000 ms)
             }, 1000);
-        } else if (timeRemaining <= 0 && timer) {
-            clearInterval(timer); // Detener el temporizador cuando llegue a 0
+        } else if (timeRemaining <= 0 && isCountdownActive) {
             setIsCountdownActive(false);
+            handleEndAuction();
+            console.log('Auction ended');
         }
 
         return () => {
@@ -63,59 +70,52 @@ export default function AuctionDetails({ auctionState }: any) {
         );
     }
 
+    // Determinar color del tag basado en el estado
+    const getStatusTag = () => {
+        switch (auction.state) {
+            case "not initiated":
+                return <span className="px-2 py-1 text-xs font-bold text-blue-600 bg-blue-100 rounded">No iniciado</span>;
+            case "in progress":
+                return <span className="px-2 py-1 text-xs font-bold text-yellow-600 bg-yellow-100 rounded">En progreso</span>;
+            case "finished":
+                return <span className="px-2 py-1 text-xs font-bold text-green-600 bg-green-100 rounded">Terminado</span>;
+            default:
+                return <span className="px-2 py-1 text-xs font-bold text-gray-600 bg-gray-100 rounded">Desconocido</span>;
+        }
+    };
+
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Detalles de la Subasta</CardTitle>
+                <CardTitle className="flex items-center justify-between">
+                    Detalles de la Subasta
+                    {getStatusTag()} {/* Renderizar el tag basado en el estado */}
+                </CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                     {/* Renderizar el estado */}
                     <div>
-                        <span className="text-sm font-bold">Estado:</span>
-                        <p>{auction.state === "not initiated" ? "No iniciado" : auction.state || "Sin datos"}</p>
+                        <span className="text-sm font-bold">Ganador:</span>
+                        <p>{auction.winner}</p>
                     </div>
 
                     {/* Renderizar el precio actual */}
                     <div>
                         <span className="text-sm font-bold">Precio Actual:</span>
-                        <p>${auction.currentPrice || "0.00"}</p>
+                        <p>${auction.currentPrice.toLocaleString() || "0.00"}</p>
                     </div>
 
                     {/* Renderizar el incremento */}
                     <div>
                         <span className="text-sm font-bold">Incremento:</span>
-                        <p>${auction.increment || "0.00"}</p>
+                        <p>${auction.increment.toLocaleString() || "0.00"}</p>
                     </div>
 
                     {/* Renderizar el tiempo restante */}
                     <div>
                         <span className="text-sm font-bold">Tiempo Restante:</span>
                         <p>{timeRemaining > 0 ? formatTime(timeRemaining) : "Tiempo agotado"}</p>
-                        {!isCountdownActive && timeRemaining > 0 && (
-                            <Button className="mt-2" onClick={handleStartCountdown}>
-                                Iniciar cuenta regresiva
-                            </Button>
-                        )}
-                    </div>
-
-                    {/* Renderizar las transacciones (si existen) */}
-                    <div className="col-span-2">
-                        <span className="text-sm font-bold">Transacciones:</span>
-                        {auction.transactions && auction.transactions.length > 0 ? (
-                            <ul className="mt-2 space-y-2">
-                                {auction.transactions.map((transaction: any, index: number) => (
-                                    <li key={index} className="text-sm">
-                                        <strong>Usuario:</strong> {transaction.nombre} {transaction.apellido} <br />
-                                        <strong>Rol:</strong> {transaction.role} <br />
-                                        <strong>Monto Ofrecido:</strong> ${transaction.amountBid} <br />
-                                        <strong>Precio Después de la Oferta:</strong> ${transaction.priceAfterBid}
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <p>Sin transacciones registradas</p>
-                        )}
                     </div>
                 </div>
             </CardContent>

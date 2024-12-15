@@ -12,6 +12,8 @@ const {
     createAuction,
     auctionData,
     updateAuction,
+    updateAuctionState,
+    addBidToAuction,
 } = require('../services/auction-service');
 
 function setupWebSocketServer(io) {
@@ -90,17 +92,72 @@ function setupWebSocketServer(io) {
             const auctionId = parseInt(data.auctionId);
             const auction = auctionData.find((a) => a.auctionId === auctionId);
             if (!auction) {
+                return { success: false, message: 'Auction not found' };
+            }
+
+            if (auction.state !== 'not initiated' && auction.state !== 'finished') {
+                console.log(`Auction state: ${auction.state}`);
+                return { success: false, message: 'Auction already initiated' };
+            }
+
+            const response = updateAuctionState(auctionId, 'in progress');
+            if (!response.success) {
+                return callback({ success: false, message: response.message });
+            }
+            console.log(`Auction ${auctionId} initiated.`);
+
+            io.to(String(auctionId)).emit('auction_started', { success: true, auction: response.auction });
+        });
+
+        socket.on('end_auction', (data, callback) => {
+            const auctionId = parseInt(data.auctionId);
+            const auction = auctionData.find((a) => a.auctionId === auctionId);
+            if (!auction) {
                 return callback({ success: false, message: 'Auction not found' });
             }
 
-            if (auction.state !== 'not initiated') {
-                return callback({ success: false, message: 'Auction already initiated' });
+            if (auction.state !== 'in progress') {
+                return { success: false, message: 'Auction not in progress' };
             }
 
-            auction.state = 'initiated';
-            console.log(`Auction ${auctionId} initiated.`);
-            io.to(String(auctionId)).emit('auction_started', { success: true });
-            callback({ success: true });
+            const response = updateAuctionState(auctionId, 'finished');
+            if (!response.success) {
+                return callback({ success: false, message: response.message });
+            }
+            console.log(`Auction ${auctionId} finished.`);
+
+            io.to(String(auctionId)).emit('auction_ended', { success: true, auction: response.auction });
+        });
+
+        socket.on('place_bid', (data) => {
+            const auctionId = parseInt(data.auctionId);
+            const userId = data.userId;
+            const nombre = data.nombre;
+            const apellido = data.apellido;
+            const role = data.role;
+            const amountBid = parseFloat(data.amountBid);
+
+            const auction = auctionData.find((a) => a.auctionId === auctionId);
+            if (!auction) {
+                console.log(`Auction not found: ${auctionId}`);
+                return { success: false, message: 'Auction not found' };
+            }
+
+            if (auction.state !== 'in progress') {
+                console.log(`Auction not in progress: ${auction.state}`);
+                return { success: false, message: 'Auction not in progress' };
+            }
+
+            if (amountBid <= auction.increment) {
+                console.log(`Bid amount must be greater than current increment: ${amountBid}`);
+                return { success: false, message: 'Bid amount must be greater than current increment' };
+            }
+            const response = addBidToAuction(auctionId, userId, nombre, apellido, role, amountBid);
+            if (!response.success) {
+                return { success: false, message: response.message };
+            }
+            io.to(String(auctionId)).emit('bid_placed', { success: true, message:"Bid placed", auction});
+
         });
 
         // Manejo de desconexión

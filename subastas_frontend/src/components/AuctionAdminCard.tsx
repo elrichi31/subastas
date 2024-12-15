@@ -4,9 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
-export default function AuctionAdminCard({ auctionState, handleCreateAuction, handleUpdateAuction }: any) {
-    console.log('Auction state in AdminCard:', auctionState);
-
+export default function AuctionAdminCard({ auctionState, handleCreateAuction, handleUpdateAuction, handleStartAuction, handleEndAuction }: any) {
     if (!auctionState) {
         return (
             <Card className="mt-4">
@@ -55,13 +53,20 @@ export default function AuctionAdminCard({ auctionState, handleCreateAuction, ha
                                 Crear Subasta
                             </Button>
                         ) : (
-                            <div className="space-x-2">
-                                <Button onClick={handleUpdateAuction}>
+                            <div className="flex flex-col space-y-2">
+                                <Button onClick={handleUpdateAuction} disabled={auctionState.auction.state === 'not initiated' || auctionState.auction.state === "finished" ? false : true}>
                                     Actualizar Subasta
                                 </Button>
-                                <Button>
-                                    Iniciar Subasta
-                                </Button>
+                                {
+                                    auctionState.auction.state === 'not initiated' || auctionState.auction.state === 'finished'? (
+                                        <Button onClick={handleStartAuction}>
+                                            Iniciar Subasta
+                                        </Button>
+                                    ) :
+                                        <Button onClick={handleEndAuction}>
+                                            Finalizar Subasta
+                                        </Button>
+                                }
                             </div>
                         )
                     }

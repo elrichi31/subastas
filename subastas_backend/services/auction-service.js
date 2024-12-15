@@ -8,6 +8,7 @@ function createAuction(auctionId, currentPrice, increment, countdownDuration) {
         state: "not initiated",
         time: countdownDuration, // Countdown duration in milliseconds
         increment,
+        winner: "?",
         transactions: [],
     };
 
@@ -33,6 +34,10 @@ function updateAuction(auctionId, currentPrice, increment, countdownDuration) {
     auction.currentPrice = currentPrice;
     auction.increment = increment;
     auction.time = countdownDuration;
+    auction.state = "not initiated",
+    auction.winner = "?";
+    auction.transactions = [];
+
 
     console.log(`Auction ${auctionId} updated.`);
     return {
@@ -65,13 +70,15 @@ function addBidToAuction(auctionId, userId, nombre, apellido, role, amountBid) {
     const auction = auctionData.find((a) => a.auctionId === auctionId);
 
     if (!auction) {
+        console.log(`Auction not found: ${auctionId}`);
         return {
             success: false,
             message: "Auction not found",
         };
     }
 
-    if (auction.state !== "initiated") {
+    if (auction.state !== "in progress") {
+        console.log(`Auction cannot accept bids in its current state: ${auction.state}`);
         return {
             success: false,
             message: `Auction cannot accept bids in its current state: ${auction.state}`,
@@ -79,6 +86,7 @@ function addBidToAuction(auctionId, userId, nombre, apellido, role, amountBid) {
     }
 
     if (typeof amountBid !== 'number' || amountBid <= 0) {
+        console.log(`Invalid bid amount: ${amountBid}`);
         return {
             success: false,
             message: "Invalid bid amount. It must be a positive number.",
@@ -98,8 +106,9 @@ function addBidToAuction(auctionId, userId, nombre, apellido, role, amountBid) {
 
     auction.transactions.push(transaction);
     auction.currentPrice = newPrice;
+    auction.winner = `${nombre} ${apellido}`;
+    console.log(`Bid added to auction ${auctionId}. New price: ${newPrice}`);
 
-    console.log(`Bid added to auction ${auctionId}:`, transaction);
     return {
         success: true,
         message: "Bid added successfully",

@@ -6,7 +6,7 @@ import { useWebSocket } from '@/app/context/WebSocketContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -86,18 +86,21 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto p-4 max-w-md">
       <Card>
         <CardHeader>
-          <CardTitle>Registro</CardTitle>
+          <CardTitle className="text-2xl font-bold">Registro</CardTitle>
+          <CardDescription>Crea una nueva cuenta para acceder a nuestros servicios.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit}>
-            <div className="mb-4">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
               <Label htmlFor="role">Seleccione su rol</Label>
               <RadioGroup
                 id="role"
-                className="flex gap-4 mt-2"
+                name="role"
+                className="flex gap-4"
+                defaultValue={formData.role}
                 onValueChange={(value) => setRole(value as 'postor' | 'manejador')}
               >
                 <div className="flex items-center space-x-2">
@@ -113,11 +116,11 @@ export default function RegisterPage() {
 
             {role === 'postor' && (
               <>
-                <div className="mb-4">
+                <div className="space-y-2">
                   <Label htmlFor="nombre">Nombre</Label>
                   <Input id="nombre" name="nombre" onChange={handleInputChange} required />
                 </div>
-                <div className="mb-4">
+                <div className="space-y-2">
                   <Label htmlFor="apellido">Apellido</Label>
                   <Input id="apellido" name="apellido" onChange={handleInputChange} required />
                 </div>
@@ -126,11 +129,11 @@ export default function RegisterPage() {
 
             {role === 'manejador' && (
               <>
-                <div className="mb-4">
+                <div className="space-y-2">
                   <Label htmlFor="usuario">Usuario</Label>
                   <Input id="usuario" name="usuario" onChange={handleInputChange} required />
                 </div>
-                <div className="mb-4">
+                <div className="space-y-2">
                   <Label htmlFor="contrasena">Contraseña</Label>
                   <Input
                     id="contrasena"
@@ -143,18 +146,16 @@ export default function RegisterPage() {
               </>
             )}
 
-            <Button type="submit" disabled={!role || loading}>
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={loading}
+            >
               {loading ? 'Procesando...' : 'Registrarse'}
             </Button>
           </form>
-
-          {message && (
-            <div className="mt-4 p-2 bg-gray-100 border border-gray-300 rounded">
-              {message}
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }
