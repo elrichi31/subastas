@@ -15,7 +15,7 @@ export default function RegisterPage() {
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const ws = useWebSocket();
+  const {socket, connected} = useWebSocket();
   const router = useRouter();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -28,8 +28,6 @@ export default function RegisterPage() {
       setMessage('Por favor seleccione un rol antes de continuar.');
       return;
     }
-
-    const socket = ws.current;
     if (socket && socket.connected) {
       setLoading(true);
 

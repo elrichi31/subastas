@@ -2,6 +2,7 @@
 import { Navbar } from '@/components/Navbar';
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { WebSocketProvider } from "../context/WebSocketContext";
 
 interface User {
   id: string;

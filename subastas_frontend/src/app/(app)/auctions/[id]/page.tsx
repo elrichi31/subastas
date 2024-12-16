@@ -9,7 +9,6 @@ import AuctionUsersCard from '@/components/AuctionUsersCard';
 import AuctionDetails from '@/components/AuctionDetails';
 import AuctionAdminCard from '@/components/AuctionAdminCard';
 import { toast } from 'sonner';
-
 interface Auction {
   id: string;
   name: string;
@@ -36,7 +35,7 @@ export default function AuctionRoom() {
   const [users, setUsers] = useState<User[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [auctionState, setAuctionState] = useState<any | null>(null);
-  const socket = useWebSocket();
+  const {socket, connected} = useWebSocket();
   const [loading, setLoading] = useState(true);
 
   // Fetch auction details
@@ -69,28 +68,9 @@ export default function AuctionRoom() {
 
     fetchAuction();
     return () => {
-      socket.current?.emit('user_left', { userId, auctionId: id });
+      socket?.emit('user_left', { userId, auctionId: id });
     };
-  }, [id]);
-
-  const handleCreateAuction = async () => {
-    try {
-      const timer = document.getElementById('timer') as HTMLInputElement;
-      const increment = document.getElementById('increment') as HTMLInputElement;
-      const currentPrice = auction?.base_price || 0;
-      const timeMillis = parseInt(timer.value) * 60 * 1000;
-
-      socket.current?.emit('create_auction', {
-        auctionId: id,
-        countdownDuration: timeMillis,
-        increment: increment.value,
-        currentPrice: currentPrice
-      });
-    } catch (error) {
-      toast.error('Error al crear la subasta.');
-      console.error('Error creating auction:', error);
-    }
-  };
+  }, [id, connected]);
 
   const handleUpdateAuction = async () => {
     try {
@@ -99,7 +79,7 @@ export default function AuctionRoom() {
       const currentPrice = auction?.base_price || 0;
       const timeMillis = parseInt(timer.value) * 60 * 1000;
 
-      socket.current?.emit('update_auction', {
+      socket?.emit('update_auction', {
         auctionId: id,
         countdownDuration: timeMillis,
         increment: increment.value,
@@ -113,7 +93,7 @@ export default function AuctionRoom() {
 
   const handleStartAuction = async () => {
     try {
-      socket.current?.emit('start_auction', { auctionId: id });
+      socket?.emit('start_auction', { auctionId: id });
     } catch (error) {
       toast.error('Error al iniciar la subasta.');
       console.error('Error starting auction:', error);
@@ -122,7 +102,7 @@ export default function AuctionRoom() {
 
   const handleEndAuction = async () => {
     try {
-      socket.current?.emit('end_auction', { auctionId: id });
+      socket?.emit('end_auction', { auctionId: id });
     } catch (error) {
       toast.error('Error al finalizar la subasta.');
       console.error('Error ending auction:', error);
@@ -131,7 +111,7 @@ export default function AuctionRoom() {
 
   const handlePlaceBid = async (amountBid: number) => {
     try {
-      socket.current?.emit('place_bid', {
+      socket?.emit('place_bid', {
         auctionId: id,
         userId,
         nombre: user?.nombre,
@@ -148,55 +128,46 @@ export default function AuctionRoom() {
 
   // Handle WebSocket events
   useEffect(() => {
-    if (!socket?.current || !id || !userId) return;
+    if (!connected) return;
 
     const connectAndJoin = () => {
-      if (!socket.current?.connected) {
-        socket.current?.connect();
-      }
-      socket.current?.emit('user_entered', { userId, auctionId: id });
+      socket?.emit('user_entered', { userId, auctionId: id });
+      console.log('User joined room:', userId);
     };
 
     const handleDisconnect = () => {
-      socket.current?.emit('user_left', { userId, auctionId: id });
+      socket?.emit('user_left', { userId, auctionId: id });
     };
 
     const handleRoomUpdated = (data: { users: any }) => {
       setUsers(data.users.users);
     };
-
     connectAndJoin();
-
-    socket.current.on('connect', connectAndJoin);
-    socket.current.on('disconnect', handleDisconnect);
-    socket.current.on('room_updated', handleRoomUpdated);
-    socket.current.on('auction_created', (data: any) => {
-      setAuctionState(data);
-      toast.success('Subasta creada por el manejador');
-    });
-    socket.current.on('auction_updated', (data: any) => {
+    socket?.on('room_updated', handleRoomUpdated);
+    socket?.on('auction_updated', (data: any) => {
       setAuctionState(data);
       toast.info('Subasta actualizada.');
     });
-    socket.current.on('auction_started', (data: any) => {
+    socket?.on('auction_started', (data: any) => {
       setAuctionState(data);
       toast.success('La subasta ha comenzado.');
     });
-    socket.current.on('auction_ended', (data: any) => {
+    socket?.on('auction_ended', (data: any) => {
       setAuctionState(data);
       toast.success('La subasta ha finalizado.');
     });
-    socket.current.on('bid_placed', (data: any) => {
+    socket?.on('bid_placed', (data: any) => {
       setAuctionState(data);
       toast.success(`Nueva puja`);
     });
 
     return () => {
-      socket.current?.off('connect', connectAndJoin);
-      socket.current?.off('disconnect', handleDisconnect);
-      socket.current?.off('room_updated', handleRoomUpdated);
+      socket?.off('connect', connectAndJoin);
+      socket?.off('disconnect', handleDisconnect);
+      socket?.off('room_updated', handleRoomUpdated);
+      socket?.removeAllListeners()
     };
-  }, [socket, id, userId]);
+  }, [socket, id, userId, connected]);
 
   return (
     <div className="container mx-auto p-4 min-h-screen">
@@ -218,7 +189,6 @@ export default function AuctionRoom() {
               {user?.role === 'admin' ? (
                 <AuctionAdminCard
                   auctionState={auctionState}
-                  handleCreateAuction={handleCreateAuction}
                   handleUpdateAuction={handleUpdateAuction}
                   handleStartAuction={handleStartAuction}
                   handleEndAuction={handleEndAuction}

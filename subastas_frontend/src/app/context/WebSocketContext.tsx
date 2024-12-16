@@ -1,60 +1,71 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-const SocketContext = createContext<{ current: Socket | null } | null>(null);
+interface SocketContextValue {
+  socket: Socket | null;
+  connected: boolean;
+}
+
+const SocketContext = createContext<SocketContextValue | null>(null);
 
 export const WebSocketProvider = ({ children }: { children: React.ReactNode }) => {
-  const socket = useRef<Socket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    if (!socket.current) {
-      socket.current = io('http://localhost:3001', {
+    if (!socketRef.current) {
+      console.log('Initializing socket...');
+      socketRef.current = io('http://localhost:3001', {
         transports: ['websocket'],
         reconnection: true,
         reconnectionDelay: 500,
         reconnectionAttempts: Infinity,
       });
-
-      // Manejo de eventos de conexión y reconexión
-      socket.current.on('connect', () => {
-        console.log('Connected to server:', socket.current?.id);
-
-        // Registrar al usuario después de reconectar
-        const userId = localStorage.getItem('userId'); // Guardar el userId en localStorage
+  
+      socketRef.current.on('connect', () => {
+        console.log('Connected to server:', socketRef.current?.id);
+        setConnected(true);
+  
+        const userId = localStorage.getItem('userId');
         if (userId) {
-          socket.current?.emit('register_user', { userId });
-          console.log(`Usuario ${userId} registrado después de reconexión.`);
+          console.log(`Registering user ${userId}`);
+          socketRef.current?.emit('register_user', { userId });
         }
       });
-
-      socket.current.on('disconnect', (reason) => {
+  
+      socketRef.current.on('disconnect', (reason) => {
         console.log('Disconnected from server:', reason);
+        setConnected(false);
       });
-
-      socket.current.on('connect_error', (error) => {
+  
+      socketRef.current.on('connect_error', (error) => {
         console.error('Connection error:', error);
       });
     }
-
+  
     return () => {
-      socket.current?.disconnect();
-      socket.current = null;
+      console.log('Cleaning up socket connection...');
+      socketRef.current?.removeAllListeners();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
     };
   }, []);
+  
 
   return (
-    <SocketContext.Provider value={socket}>
+    <SocketContext.Provider value={{ socket: socketRef.current, connected }}>
       {children}
     </SocketContext.Provider>
   );
 };
 
 export const useWebSocket = () => {
-  const socket = useContext(SocketContext);
-  if (!socket) {
+  const context = useContext(SocketContext);
+  if (!context) {
     throw new Error('useWebSocket must be used within a WebSocketProvider');
   }
-  return socket;
+  return context;
 };

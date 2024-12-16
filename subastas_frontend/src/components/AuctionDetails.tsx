@@ -3,30 +3,32 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function AuctionDetails({ auctionState, handleEndAuction }: any) {
     const auction = auctionState.auction;
-    const [timeRemaining, setTimeRemaining] = useState<number>(auction?.time || 0); // Tiempo en milisegundos
+    const initialTime = auction?.time || 0; // Tiempo inicial en milisegundos
+    const [timeRemaining, setTimeRemaining] = useState<number>(initialTime); // Tiempo restante
     const [isCountdownActive, setIsCountdownActive] = useState(false);
+    const [hasTimerStarted, setHasTimerStarted] = useState(false); // Nueva bandera para evitar reinicios
 
+    // Función para iniciar la cuenta regresiva
     const handleStartCountdown = () => {
-        if (timeRemaining > 0) {
+        if (timeRemaining > 0 && !hasTimerStarted) {
             setIsCountdownActive(true);
+            setHasTimerStarted(true); // Marca el temporizador como iniciado
         }
     };
 
-    // Actualizar el tiempo restante cuando `auctionState` cambie
+    // Actualizar el tiempo restante solo si la subasta comienza
     useEffect(() => {
-        if (auction?.time) {
-            setTimeRemaining(auction.time); // Actualizar el tiempo restante con el valor más reciente
-            setIsCountdownActive(false); // Detener el temporizador si se reinician los datos
-        }
-
-        if (auction?.state === "in progress") {
-            handleStartCountdown();
+        if (auction?.state === "in progress" && !hasTimerStarted) {
+            setTimeRemaining(auction.time); // Establece el tiempo inicial
+            handleStartCountdown(); // Inicia el temporizador
         }
 
         if (auction?.state === "finished") {
             setIsCountdownActive(false);
+            setTimeRemaining(initialTime); // Reinicia el tiempo restante al valor inicial
+            setHasTimerStarted(false); // Permitir que el temporizador pueda iniciarse nuevamente
         }
-    }, [auctionState]); // Escuchar cambios en `auctionState`
+    }, [auction?.state]); // Escucha solo cambios en el estado de la subasta
 
     // Efecto para manejar la cuenta regresiva
     useEffect(() => {
@@ -38,13 +40,14 @@ export default function AuctionDetails({ auctionState, handleEndAuction }: any) 
             }, 1000);
         } else if (timeRemaining <= 0 && isCountdownActive) {
             setIsCountdownActive(false);
-            handleEndAuction();
-            console.log('Auction ended');
+            handleEndAuction(); // Llama a la función para finalizar la subasta
+            setTimeRemaining(initialTime); // Reinicia el tiempo restante al valor inicial
+            setHasTimerStarted(false); // Permitir que el temporizador pueda iniciarse nuevamente
         }
 
         return () => {
             if (timer) {
-                clearInterval(timer); // Limpiar el temporizador al desmontar
+                clearInterval(timer); // Limpia el temporizador al desmontar
             }
         };
     }, [isCountdownActive, timeRemaining]);
@@ -79,6 +82,8 @@ export default function AuctionDetails({ auctionState, handleEndAuction }: any) 
                 return <span className="px-2 py-1 text-xs font-bold text-yellow-600 bg-yellow-100 rounded">En progreso</span>;
             case "finished":
                 return <span className="px-2 py-1 text-xs font-bold text-green-600 bg-green-100 rounded">Terminado</span>;
+            case "not configured":
+                return <span className="px-2 py-1 text-xs font-bold text-red-600 bg-red-100 rounded">No configurado</span>;
             default:
                 return <span className="px-2 py-1 text-xs font-bold text-gray-600 bg-gray-100 rounded">Desconocido</span>;
         }
@@ -94,10 +99,10 @@ export default function AuctionDetails({ auctionState, handleEndAuction }: any) 
             </CardHeader>
             <CardContent>
                 <div className="grid grid-cols-2 gap-4">
-                    {/* Renderizar el estado */}
+                    {/* Renderizar el ganador */}
                     <div>
                         <span className="text-sm font-bold">Ganador:</span>
-                        <p>{auction.winner}</p>
+                        <p>{auction.winner || "Sin ganador"}</p>
                     </div>
 
                     {/* Renderizar el precio actual */}

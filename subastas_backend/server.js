@@ -4,7 +4,7 @@ const cors = require('cors');
 const { Server } = require('socket.io'); // Importar Socket.IO
 const { setupRestEndpoints } = require('./routes/endpoints');
 const { setupWebSocketServer } = require('./websocket/websocket'); // Configuración WebSocket
-
+const { createAllAuctions } = require('./createAuctions');
 function startServer() {
     const app = express();
     app.use(express.json());
@@ -33,5 +33,5 @@ function startServer() {
         console.log(`HTTP and WebSocket server running on port ${PORT}`);
     });
 }
-
+createAllAuctions('./data/data.json');
 startServer();

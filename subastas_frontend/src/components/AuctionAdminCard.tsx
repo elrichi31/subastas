@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
-export default function AuctionAdminCard({ auctionState, handleCreateAuction, handleUpdateAuction, handleStartAuction, handleEndAuction }: any) {
+export default function AuctionAdminCard({ auctionState, handleUpdateAuction, handleStartAuction, handleEndAuction }: any) {
     if (!auctionState) {
         return (
             <Card className="mt-4">
@@ -34,6 +34,7 @@ export default function AuctionAdminCard({ auctionState, handleCreateAuction, ha
                             type="number"
                             placeholder="Ingrese minutos"
                             className="mt-1 w-full"
+                            required
                         />
                     </div>
                     <div>
@@ -45,12 +46,13 @@ export default function AuctionAdminCard({ auctionState, handleCreateAuction, ha
                             type="number"
                             placeholder="Ingrese el incremento mínimo"
                             className="mt-1 w-full"
+                            required
                         />
                     </div>
                     {
-                        auctionState.message === 'Auction not found' ? (
-                            <Button onClick={handleCreateAuction}>
-                                Crear Subasta
+                        auctionState.message === 'Auction not found' || auctionState.auction.state === "not configured" ? (
+                            <Button onClick={handleUpdateAuction}>
+                                Configurar Subasta
                             </Button>
                         ) : (
                             <div className="flex flex-col space-y-2">
