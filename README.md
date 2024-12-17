@@ -55,7 +55,7 @@ Desde aquí se puede registrar como postor (solo nombre y apellido) o acceder co
 Para acceder como moderador, usar las siguientes credenciales:
 
 * **Usuario**: admin
-* **Contraseña**: admin
+* **Contraseña**: admin123
 
 Una vez autenticado, se puede ingresar al sistema y gestionar las subastas.
 
