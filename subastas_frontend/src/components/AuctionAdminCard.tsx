@@ -24,7 +24,7 @@ export default function AuctionAdminCard({ auctionState, handleUpdateAuction, ha
                 <CardTitle>Controles de Subasta</CardTitle>
             </CardHeader>
             <CardContent>
-                <div className="space-y-4">
+                <form className="space-y-4">
                     <div>
                         <Label htmlFor="timer" className="block text-sm font-medium text-gray-700">
                             Configurar Temporizador (minutos)
@@ -72,7 +72,7 @@ export default function AuctionAdminCard({ auctionState, handleUpdateAuction, ha
                             </div>
                         )
                     }
-                </div>
+                </form>
             </CardContent>
         </Card>
     );
